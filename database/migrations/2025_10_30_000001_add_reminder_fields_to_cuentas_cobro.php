@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::table('cuentas_cobro', function (Blueprint $table) {
             // Campos para reminders de pago
-            $table->string('cliente_email', 255)->nullable()->after('observaciones');
+            $table->string('cliente_email', 255)->nullable()->after('descripcion');
             $table->string('cliente_whatsapp', 20)->nullable()->after('cliente_email');
             $table->boolean('recordatorio_habilitado')->default(true)->after('cliente_whatsapp');
             $table->integer('frecuencia_recordatorio_dias')->default(5)->after('recordatorio_habilitado');

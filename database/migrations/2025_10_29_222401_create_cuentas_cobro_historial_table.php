@@ -13,7 +13,20 @@ return new class extends Migration
     {
         Schema::create('cuentas_cobro_historial', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('cuenta_cobro_id');
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->string('accion');
+            $table->string('estado_anterior')->nullable();
+            $table->string('estado_nuevo')->nullable();
+            $table->text('comentario')->nullable();
             $table->timestamps();
+
+            $table->foreign('cuenta_cobro_id')
+                  ->references('id')
+                  ->on('cuentas_cobro')
+                  ->onDelete('cascade');
+                  
+            $table->index(['cuenta_cobro_id', 'created_at']);
         });
     }
 

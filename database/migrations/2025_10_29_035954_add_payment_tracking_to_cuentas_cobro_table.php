@@ -12,7 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('cuentas_cobro', function (Blueprint $table) {
-            //
+            $table->date('fecha_pago')->nullable()->after('fecha_maxima_pago');
+            $table->string('referencia_pago')->nullable()->after('fecha_pago');
+            $table->string('metodo_pago')->nullable()->after('referencia_pago');
         });
     }
 
@@ -22,7 +24,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('cuentas_cobro', function (Blueprint $table) {
-            //
+            $table->dropColumn(['fecha_pago', 'referencia_pago', 'metodo_pago']);
         });
     }
 };
