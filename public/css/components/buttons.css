@@ -1,0 +1,36 @@
+/* ================================================
+   BUTTONS - Apple Style Buttons
+   ================================================ */
+
+.btn-apple {
+    background: var(--apple-blue);
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 980px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-apple:hover {
+    background: var(--apple-blue-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.3);
+}
+
+.btn-apple-secondary {
+    background: transparent;
+    color: var(--apple-blue);
+    border: 1px solid var(--apple-blue);
+}
+
+.btn-apple-secondary:hover {
+    background: var(--apple-blue);
+    color: white;
+}
