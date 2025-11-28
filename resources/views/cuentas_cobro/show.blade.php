@@ -7,6 +7,7 @@
 @endpush
 
 @section('content')
+@include('components.modals')
 
 <div class="detail-container">
     {{-- Header --}}
@@ -267,34 +268,82 @@
                 $canSendClient = $cuenta->canSendToClient(auth()->user());
             @endphp
 
-            @if($canApprove)
-            <div class="detail-section" style="background:#F5F5F7;padding:16px;border-radius:16px;">
-                <h3 class="section-title" style="margin-bottom: 12px;">
-                    <span class="material-symbols-rounded">verified</span>
-                    Acciones de Aprobación
+            {{-- Flujo de Documento - Acciones según Rol --}}
+            <div class="detail-section workflow-section" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0;">
+                <h3 class="section-title" style="margin-bottom: 16px;">
+                    <span class="material-symbols-rounded">account_tree</span>
+                    Flujo de Documento
                 </h3>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                    <form action="{{ route('cuentas_cobro.aprobar', $cuenta->id) }}" method="POST" id="approveForm">
-                        @csrf
-                        <input type="hidden" name="comentario" value="" />
-                        <button type="submit" class="btn-action btn-approve" style="background:#34C759;color:white;border:none;" id="approveBtn">
-                            <span class="material-symbols-rounded">send</span>
-                            Enviar al siguiente nivel
-                        </button>
-                    </form>
-                    <button type="button" class="btn-action" onclick="openRejectModal()" style="background:#FF3B30;color:white;border:none;">
+                
+                {{-- Indicador de Etapa Actual --}}
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 12px; background: white; border-radius: 12px; border: 1px solid #e5e7eb;">
+                    <div style="width: 40px; height: 40px; border-radius: 50%; background: {{ $cuenta->getEstadoColor() }}; display: flex; align-items: center; justify-content: center;">
+                        <span class="material-symbols-rounded" style="color: white;">{{ $cuenta->getEstadoIcono() }}</span>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; color: #6b7280; font-weight: 500;">Etapa Actual</div>
+                        <div style="font-size: 16px; font-weight: 700; color: #1f2937;">{{ $cuenta->getEtapaTexto() }}</div>
+                    </div>
+                    <div style="margin-left: auto;">
+                        <span class="role-badge" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 12px; border-radius: 8px; font-size: 12px;">
+                            Tu rol: {{ ucfirst(str_replace('_', ' ', $userRole)) }}
+                        </span>
+                    </div>
+                </div>
+
+                @if($canApprove)
+                {{-- Acciones de Aprobación --}}
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button type="button" class="btn-action" onclick="openModal('approveModal')" style="background: linear-gradient(135deg, #34C759 0%, #22C55E 100%); color: white; border: none; padding: 12px 20px;">
+                        <span class="material-symbols-rounded">send</span>
+                        Aprobar y Enviar
+                    </button>
+                    <button type="button" class="btn-action" onclick="openModal('rejectModal')" style="background: linear-gradient(135deg, #FF3B30 0%, #DC2626 100%); color: white; border: none; padding: 12px 20px;">
                         <span class="material-symbols-rounded">cancel</span>
                         Rechazar
                     </button>
-                    @if($userRole === 'contratacion' && $cuenta->etapa_aprobacion === 'contratacion')
-                    <button type="button" class="btn-action" onclick="openDevolverModal()" style="background:#FF9500;color:white;border:none;">
+                    @if(in_array($userRole, ['contratacion', 'super_admin']) && $cuenta->etapa_aprobacion === 'contratacion')
+                    <button type="button" class="btn-action" onclick="openModal('devolverModal')" style="background: linear-gradient(135deg, #FF9500 0%, #F59E0B 100%); color: white; border: none; padding: 12px 20px;">
                         <span class="material-symbols-rounded">undo</span>
-                        Devolver para corrección
+                        Devolver para Corrección
                     </button>
                     @endif
+                    <button type="button" class="btn-action" onclick="openModal('comentarioModal')" style="background: linear-gradient(135deg, #007AFF 0%, #0051D5 100%); color: white; border: none; padding: 12px 20px;">
+                        <span class="material-symbols-rounded">comment</span>
+                        Agregar Comentario
+                    </button>
                 </div>
+                @elseif(!$canApprove && $cuenta->estado_aprobacion === 'en_revision')
+                {{-- Advertencia de permisos --}}
+                <div style="display: flex; align-items: center; gap: 12px; padding: 16px; background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 12px;">
+                    <span class="material-symbols-rounded" style="color: #92400E; font-size: 24px;">info</span>
+                    <div>
+                        <div style="font-weight: 600; color: #92400E;">Esta cuenta está pendiente de aprobación</div>
+                        <div style="font-size: 13px; color: #A16207;">Requiere aprobación del rol: <strong>{{ $cuenta->getEtapaTexto() }}</strong></div>
+                    </div>
+                </div>
+                @endif
+
+                {{-- Registro de Pago para Tesorería --}}
+                @if($cuenta->canRegisterPayment(auth()->user()))
+                <div style="margin-top: 16px; padding: 16px; background: white; border-radius: 12px; border: 2px solid #34C759;">
+                    <h4 style="margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
+                        <span class="material-symbols-rounded" style="color: #34C759;">payments</span>
+                        Registro de Pago (Tesorería)
+                    </h4>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button type="button" class="btn-action" onclick="openModal('pagoModal')" style="background: linear-gradient(135deg, #34C759 0%, #22C55E 100%); color: white; border: none; padding: 12px 20px;">
+                            <span class="material-symbols-rounded">check_circle</span>
+                            Registrar Pago
+                        </button>
+                        <button type="button" class="btn-action" onclick="openModal('rechazarPagoModal')" style="background: linear-gradient(135deg, #FF3B30 0%, #DC2626 100%); color: white; border: none; padding: 12px 20px;">
+                            <span class="material-symbols-rounded">block</span>
+                            Rechazar Pago
+                        </button>
+                    </div>
+                </div>
+                @endif
             </div>
-            @endif
 
             @if($canSendClient)
             <div class="detail-section" style="background:#F5F5F7;padding:16px;border-radius:16px;">
@@ -404,39 +453,287 @@
     </div>
 </div>
 
-{{-- Modal Rechazo --}}
-<div id="rejectModal" style="display:none; position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
-    <div style="background:white;border-radius:20px;padding:24px;max-width:500px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
-        <h2 style="margin-top:0;display:flex;align-items:center;gap:8px;"><span class="material-symbols-rounded">cancel</span> Rechazar Cuenta</h2>
-        <form action="{{ route('cuentas_cobro.rechazar', $cuenta->id) }}" method="POST">
+{{-- Modal Aprobar --}}
+<div id="approveModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header success">
+            <span class="material-symbols-rounded">verified</span>
+            <h2>Aprobar y Enviar al Siguiente Nivel</h2>
+            <button class="close-btn" onclick="closeModal('approveModal')">
+                <span class="material-symbols-rounded">close</span>
+            </button>
+        </div>
+        <form action="{{ route('cuentas_cobro.aprobar', $cuenta->id) }}" method="POST" id="approveForm">
             @csrf
-            <div style="margin-bottom:16px;">
-                <label style="display:block;font-weight:600;margin-bottom:6px;">Motivo de rechazo</label>
-                <textarea name="motivo_rechazo" rows="4" required style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:10px;"></textarea>
+            <div class="modal-body">
+                <div class="modal-alert info">
+                    <span class="material-symbols-rounded">info</span>
+                    <div>
+                        <strong>Cuenta #{{ $cuenta->numero }}</strong><br>
+                        <span style="font-size: 13px;">Esta cuenta será enviada a la siguiente etapa del flujo de aprobación.</span>
+                    </div>
+                </div>
+                <div class="modal-form-group">
+                    <label>Comentario (opcional)</label>
+                    <textarea name="comentario" rows="3" placeholder="Agregue un comentario sobre esta aprobación..."></textarea>
+                </div>
             </div>
-            <div style="display:flex;gap:8px;justify-content:flex-end;">
-                <button type="button" onclick="closeRejectModal()" class="btn-action btn-back">Cancelar</button>
-                <button type="submit" class="btn-action" style="background:#FF3B30;color:white;border:none;">Rechazar</button>
+            <div class="modal-footer">
+                <button type="button" class="modal-btn modal-btn-cancel" onclick="closeModal('approveModal')">
+                    <span class="material-symbols-rounded">close</span>
+                    Cancelar
+                </button>
+                <button type="submit" class="modal-btn modal-btn-success" id="approveBtn">
+                    <span class="material-symbols-rounded">send</span>
+                    Aprobar y Enviar
+                </button>
             </div>
         </form>
     </div>
 </div>
 
-{{-- Modal Devolver --}}
-<div id="devolverModal" style="display:none; position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
-    <div style="background:white;border-radius:20px;padding:24px;max-width:500px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
-        <h2 style="margin-top:0;display:flex;align-items:center;gap:8px;"><span class="material-symbols-rounded">undo</span> Devolver para corrección</h2>
-        <form action="{{ route('cuentas_cobro.devolver', $cuenta->id) }}" method="POST">
+{{-- Modal Rechazo --}}
+<div id="rejectModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header danger">
+            <span class="material-symbols-rounded">cancel</span>
+            <h2>Rechazar Cuenta de Cobro</h2>
+            <button class="close-btn" onclick="closeModal('rejectModal')">
+                <span class="material-symbols-rounded">close</span>
+            </button>
+        </div>
+        <form action="{{ route('cuentas_cobro.rechazar', $cuenta->id) }}" method="POST">
             @csrf
-            <div style="margin-bottom:16px;">
-                <label style="display:block;font-weight:600;margin-bottom:6px;">Motivo</label>
-                <textarea name="motivo" rows="4" required style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:10px;"></textarea>
+            <div class="modal-body">
+                <div class="modal-alert danger">
+                    <span class="material-symbols-rounded">warning</span>
+                    <div>
+                        <strong>¡Atención!</strong><br>
+                        <span style="font-size: 13px;">Esta acción rechazará definitivamente la cuenta. El contratista será notificado.</span>
+                    </div>
+                </div>
+                <div class="modal-form-group">
+                    <label>Motivo del rechazo *</label>
+                    <textarea name="motivo_rechazo" rows="4" required minlength="5" placeholder="Explique el motivo del rechazo..."></textarea>
+                </div>
             </div>
-            <div style="display:flex;gap:8px;justify-content:flex-end;">
-                <button type="button" onclick="closeDevolverModal()" class="btn-action btn-back">Cancelar</button>
-                <button type="submit" class="btn-action" style="background:#FF9500;color:white;border:none;">Devolver</button>
+            <div class="modal-footer">
+                <button type="button" class="modal-btn modal-btn-cancel" onclick="closeModal('rejectModal')">
+                    <span class="material-symbols-rounded">close</span>
+                    Cancelar
+                </button>
+                <button type="submit" class="modal-btn modal-btn-danger">
+                    <span class="material-symbols-rounded">cancel</span>
+                    Confirmar Rechazo
+                </button>
             </div>
         </form>
+    </div>
+</div>
+
+{{-- Modal Devolver para Corrección --}}
+<div id="devolverModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header warning">
+            <span class="material-symbols-rounded">undo</span>
+            <h2>Devolver para Corrección</h2>
+            <button class="close-btn" onclick="closeModal('devolverModal')">
+                <span class="material-symbols-rounded">close</span>
+            </button>
+        </div>
+        <form action="{{ route('cuentas_cobro.devolver', $cuenta->id) }}" method="POST">
+            @csrf
+            <div class="modal-body">
+                <div class="modal-alert warning">
+                    <span class="material-symbols-rounded">edit</span>
+                    <div>
+                        <strong>Devolución al Contratista</strong><br>
+                        <span style="font-size: 13px;">La cuenta será devuelta al contratista para que realice las correcciones necesarias.</span>
+                    </div>
+                </div>
+                <div class="modal-form-group">
+                    <label>Motivo de la devolución *</label>
+                    <textarea name="motivo" rows="4" required minlength="5" placeholder="Indique qué correcciones debe realizar el contratista..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="modal-btn modal-btn-cancel" onclick="closeModal('devolverModal')">
+                    <span class="material-symbols-rounded">close</span>
+                    Cancelar
+                </button>
+                <button type="submit" class="modal-btn modal-btn-warning">
+                    <span class="material-symbols-rounded">undo</span>
+                    Devolver
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- Modal Comentario --}}
+<div id="comentarioModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header info">
+            <span class="material-symbols-rounded">comment</span>
+            <h2>Agregar Comentario</h2>
+            <button class="close-btn" onclick="closeModal('comentarioModal')">
+                <span class="material-symbols-rounded">close</span>
+            </button>
+        </div>
+        <form action="{{ route('cuentas_cobro.interacciones.store', $cuenta->id) }}" method="POST">
+            @csrf
+            <input type="hidden" name="tipo" value="nota_manual">
+            <div class="modal-body">
+                <div class="modal-form-group">
+                    <label>Asunto *</label>
+                    <input type="text" name="asunto" required maxlength="200" placeholder="Asunto del comentario...">
+                </div>
+                <div class="modal-form-group">
+                    <label>Comentario *</label>
+                    <textarea name="detalle" rows="4" required maxlength="1000" placeholder="Escriba su comentario aquí..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="modal-btn modal-btn-cancel" onclick="closeModal('comentarioModal')">
+                    <span class="material-symbols-rounded">close</span>
+                    Cancelar
+                </button>
+                <button type="submit" class="modal-btn modal-btn-primary">
+                    <span class="material-symbols-rounded">send</span>
+                    Enviar Comentario
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- Modal Registro de Pago --}}
+<div id="pagoModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header success">
+            <span class="material-symbols-rounded">payments</span>
+            <h2>Registrar Pago</h2>
+            <button class="close-btn" onclick="closeModal('pagoModal')">
+                <span class="material-symbols-rounded">close</span>
+            </button>
+        </div>
+        <form action="{{ route('cuentas_cobro.pagar', $cuenta->id) }}" method="POST">
+            @csrf
+            <div class="modal-body">
+                <div class="modal-alert info">
+                    <span class="material-symbols-rounded">account_balance</span>
+                    <div>
+                        <strong>Valor Total: ${{ number_format($cuenta->valor_total, 2, ',', '.') }}</strong><br>
+                        <span style="font-size: 13px;">Beneficiario: {{ $cuenta->nombre_beneficiario }}</span>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="modal-form-group">
+                        <label>Valor Pagado *</label>
+                        <input type="number" name="valor_pagado" step="0.01" min="0" required value="{{ $cuenta->valor_total }}" placeholder="0.00">
+                    </div>
+                    <div class="modal-form-group">
+                        <label>Medio de Pago *</label>
+                        <select name="medio_pago" required>
+                            <option value="">Seleccione...</option>
+                            <option value="transferencia">Transferencia Bancaria</option>
+                            <option value="cheque">Cheque</option>
+                            <option value="efectivo">Efectivo</option>
+                            <option value="consignacion">Consignación</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-form-group">
+                    <label>Referencia de Pago</label>
+                    <input type="text" name="referencia_pago" maxlength="255" placeholder="Número de transacción o referencia...">
+                </div>
+                <div class="modal-form-group">
+                    <label>Observaciones</label>
+                    <textarea name="observacion_pago" rows="3" placeholder="Observaciones adicionales..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="modal-btn modal-btn-cancel" onclick="closeModal('pagoModal')">
+                    <span class="material-symbols-rounded">close</span>
+                    Cancelar
+                </button>
+                <button type="submit" class="modal-btn modal-btn-success">
+                    <span class="material-symbols-rounded">check_circle</span>
+                    Confirmar Pago
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- Modal Rechazar Pago --}}
+<div id="rechazarPagoModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header danger">
+            <span class="material-symbols-rounded">block</span>
+            <h2>Rechazar Pago</h2>
+            <button class="close-btn" onclick="closeModal('rechazarPagoModal')">
+                <span class="material-symbols-rounded">close</span>
+            </button>
+        </div>
+        <form action="{{ route('cuentas_cobro.rechazar_pago', $cuenta->id) }}" method="POST">
+            @csrf
+            <div class="modal-body">
+                <div class="modal-alert danger">
+                    <span class="material-symbols-rounded">warning</span>
+                    <div>
+                        <strong>¡Atención!</strong><br>
+                        <span style="font-size: 13px;">Esta acción marcará el pago como rechazado. El contratista será notificado.</span>
+                    </div>
+                </div>
+                <div class="modal-form-group">
+                    <label>Motivo del rechazo de pago *</label>
+                    <textarea name="motivo" rows="4" required minlength="5" placeholder="Explique el motivo del rechazo del pago..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="modal-btn modal-btn-cancel" onclick="closeModal('rechazarPagoModal')">
+                    <span class="material-symbols-rounded">close</span>
+                    Cancelar
+                </button>
+                <button type="submit" class="modal-btn modal-btn-danger">
+                    <span class="material-symbols-rounded">block</span>
+                    Rechazar Pago
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{{-- Modal Advertencia de Permisos --}}
+<div id="permissionModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header permission">
+            <span class="material-symbols-rounded">admin_panel_settings</span>
+            <h2>Permisos Requeridos</h2>
+            <button class="close-btn" onclick="closeModal('permissionModal')">
+                <span class="material-symbols-rounded">close</span>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-alert warning">
+                <span class="material-symbols-rounded">lock</span>
+                <div>
+                    <strong>Acceso Restringido</strong><br>
+                    <span style="font-size: 13px;">No tienes los permisos necesarios para realizar esta acción.</span>
+                </div>
+            </div>
+            <div style="background: #f9fafb; padding: 16px; border-radius: 12px; margin-top: 16px;">
+                <div style="font-weight: 600; margin-bottom: 12px;">Tu rol actual:</div>
+                <span class="role-badge">{{ ucfirst(str_replace('_', ' ', $userRole)) }}</span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="modal-btn modal-btn-primary" onclick="closeModal('permissionModal')">
+                <span class="material-symbols-rounded">check</span>
+                Entendido
+            </button>
+        </div>
     </div>
 </div>
 
@@ -456,16 +753,28 @@
 .timeline-comment {background:#F5F5F7;padding:10px 14px;border-radius:10px;font-size:14px;color:#1d1d1f;margin-bottom:8px;}
 .timeline-user {display:flex;align-items:center;gap:6px;font-size:13px;color:#86868b;font-weight:500;}
 .timeline-user .material-symbols-rounded {font-size:16px;}
+
+.workflow-section { margin-top: 16px; }
+.role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+}
+</style>
+
+<style>
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
 </style>
 
 <script>
-function openRejectModal(){ document.getElementById('rejectModal').style.display='flex'; }
-function closeRejectModal(){ document.getElementById('rejectModal').style.display='none'; }
-document.getElementById('rejectModal')?.addEventListener('click', function(e){ if(e.target === this) closeRejectModal(); });
-function openDevolverModal(){ document.getElementById('devolverModal').style.display='flex'; }
-function closeDevolverModal(){ document.getElementById('devolverModal').style.display='none'; }
-document.getElementById('devolverModal')?.addEventListener('click', function(e){ if(e.target === this) closeDevolverModal(); });
-
 // Deshabilitar botón de aprobación mientras se procesa
 document.getElementById('approveForm')?.addEventListener('submit', function(e) {
     const btn = document.getElementById('approveBtn');
@@ -473,7 +782,6 @@ document.getElementById('approveForm')?.addEventListener('submit', function(e) {
         btn.disabled = true;
         btn.style.opacity = '0.6';
         btn.style.cursor = 'not-allowed';
-        const originalText = btn.innerHTML;
         btn.innerHTML = '<span class="material-symbols-rounded" style="animation: spin 1s linear infinite;">autorenew</span> Procesando...';
     }
 });

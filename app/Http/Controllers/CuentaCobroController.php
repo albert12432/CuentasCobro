@@ -63,15 +63,44 @@ class CuentaCobroController extends Controller
     $request->validate([
         'numero' => 'required|unique:cuentas_cobro',
         'fecha_emision' => 'required|date',
-        'departamento' => 'required',
-        'municipio' => 'required',
-        'tipo_identificacion' => 'required',
-        'tipo_cliente' => 'required',
-        'nombre_beneficiario' => 'required',
-        'items.*.item' => 'required|string',
+        'departamento' => 'required|string|max:100',
+        'municipio' => 'required|string|max:100',
+        'tipo_identificacion' => 'required|in:CC,NIT',
+        'tipo_cliente' => 'required|in:natural,juridico',
+        'nombre_beneficiario' => 'required|string|max:255',
+        'identificacion' => 'nullable|string|max:50',
+        'plazo_pago' => 'nullable|integer|min:1|max:365',
+        'descripcion' => 'nullable|string|max:2000',
+        'items.*.item' => 'required|string|max:255',
+        'items.*.detalle' => 'nullable|string|max:500',
         'items.*.cantidad' => 'required|integer|min:1',
         'items.*.precio_unitario' => 'required|numeric|min:0',
+        'soportes.*' => 'nullable|file|max:10240|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png',
+    ], [
+        'numero.required' => 'El número de cuenta es obligatorio.',
+        'numero.unique' => 'Este número de cuenta ya existe.',
+        'fecha_emision.required' => 'La fecha de emisión es obligatoria.',
+        'departamento.required' => 'El departamento es obligatorio.',
+        'municipio.required' => 'El municipio es obligatorio.',
+        'tipo_identificacion.required' => 'El tipo de identificación es obligatorio.',
+        'tipo_cliente.required' => 'El tipo de cliente es obligatorio.',
+        'nombre_beneficiario.required' => 'El nombre del beneficiario es obligatorio.',
+        'items.*.item.required' => 'El nombre del ítem es obligatorio.',
+        'items.*.cantidad.required' => 'La cantidad es obligatoria.',
+        'items.*.precio_unitario.required' => 'El precio unitario es obligatorio.',
+        'soportes.*.max' => 'Cada archivo no puede exceder 10MB.',
+        'soportes.*.mimes' => 'Formato de archivo no permitido.',
     ]);
+
+    // Validar que el municipio exista en el departamento seleccionado (opcional pero recomendado)
+    $municipioValido = Municipio::whereHas('departamento', function($q) use ($request) {
+        $q->where('nombre', $request->departamento);
+    })->where('nombre', $request->municipio)->exists();
+
+    // Si no existe en la base de datos, aún lo permitimos pero logueamos advertencia
+    if (!$municipioValido && $request->filled('municipio')) {
+        \Log::info('Municipio no encontrado en la base de datos: ' . $request->municipio . ' (Departamento: ' . $request->departamento . ')');
+    }
 
     // Calcular subtotal de los ítems (servidor)
     $subtotal = collect($request->items)->sum(function($item) {
@@ -125,6 +154,24 @@ class CuentaCobroController extends Controller
             'cantidad' => $item['cantidad'],
             'precio_unitario' => $item['precio_unitario'],
         ]);
+    }
+
+    // Guardar archivos adjuntos (soportes)
+    if ($request->hasFile('soportes')) {
+        foreach ((array) $request->file('soportes', []) as $file) {
+            $dir = 'public/soportes/' . $cuenta->id;
+            Storage::makeDirectory($dir);
+            $path = $file->store($dir);
+
+            \App\Models\Soporte::create([
+                'cuenta_cobro_id' => $cuenta->id,
+                'user_id' => Auth::id(),
+                'nombre' => $file->getClientOriginalName(),
+                'path' => $path,
+                'mime' => $file->getMimeType(),
+                'size' => $file->getSize(),
+            ]);
+        }
     }
 
     // Generar PDF automáticamente al crear la cuenta de cobro
